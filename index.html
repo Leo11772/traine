@@ -220,7 +220,9 @@ main{padding-bottom:190px}
    o link (.gif, .mp4 ou .webm) aqui, usando o id do exercício.
    Ex.: GIFS.s1 = "https://seu-link/supino.gif"
    ============================================================ */
-const GIFS = {};
+const GIFS = {
+  "s1": "https://i.makeagif.com/media/10-01-2014/XREki3.gif"
+};
 const E = (id,name,series,rest,rir,muscles,cadence,tip,rules) => [id,name,series,rest,rir,"",muscles,cadence,tip,rules.split("|")];
 const WORKOUTS = {
   SEG:{title:"Upper força + core", badge:"Segunda", desc:"Compostos superiores pesados e estabilidade de tronco.", exercises:[
