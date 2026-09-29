@@ -1,624 +1,35 @@
-<!DOCTYPE html>
-<html lang="pt-BR" class="dark">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#090b10">
-<title>FORGE — Powerbuilding</title>
+// =============================================================
+// PATCH DO FRONT — carga (kg) por série
+//
+// No seu HTML, dentro do <script>:
+//   1) ADICIONE as duas funções "getLastPerformance" e "parseNum"
+//   2) SUBSTITUA a função openExerciseLog inteira pela versão abaixo
+//   3) SUBSTITUA a função buildExercisePayload inteira pela versão abaixo
+// O resto do arquivo continua igual.
+// =============================================================
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-tailwind.config = {
-  darkMode: 'class',
-  theme: {
-    extend: {
-      colors: {
-        ink: '#090b10',
-        panel: '#10141b',
-        panel2: '#151a22',
-        line: '#242b36',
-        lime: '#b7f34a',
-        lime2: '#8fd52d'
-      },
-      fontFamily: {
-        sans: ['Inter','system-ui','sans-serif']
-      }
-    }
-  }
-}
-</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+// ---------- 1) NOVAS ----------
 
-<style>
-  * { box-sizing:border-box; }
-  html { scroll-behavior:smooth; }
-  body {
-    margin:0;
-    background:
-      radial-gradient(circle at 80% -10%, rgba(183,243,74,.07), transparent 28rem),
-      #090b10;
-    color:#f5f7fa;
-    font-family:Inter,system-ui,sans-serif;
-    -webkit-tap-highlight-color:transparent;
-  }
-  .shell { max-width:1180px; margin:auto; }
-  .topbar {
-    background:rgba(9,11,16,.88);
-    backdrop-filter:blur(18px);
-    border-bottom:1px solid #1c222c;
-  }
-  .panel {
-    background:rgba(16,20,27,.88);
-    border:1px solid #222a35;
-    border-radius:18px;
-  }
-  .card {
-    background:#11161e;
-    border:1px solid #232b36;
-    border-radius:16px;
-    transition:.18s ease;
-  }
-  .card:hover { border-color:#374151; transform:translateY(-1px); }
-  .day.active {
-    background:#b7f34a;
-    color:#090b10;
-    border-color:#b7f34a;
-  }
-  .day {
-    background:#10141b;
-    border:1px solid #252d38;
-    color:#a9b1bd;
-  }
-  .day:hover { color:#fff; border-color:#4b5563; }
-  .tab.active { color:#b7f34a; border-bottom-color:#b7f34a; }
-  .tab { color:#7f8997; border-bottom:2px solid transparent; }
-  .tab:hover { color:#e5e7eb; }
-  .btn-primary {
-    background:#b7f34a;
-    color:#090b10;
-    font-weight:800;
-  }
-  .btn-primary:hover { background:#c7fa69; }
-  .btn-dark {
-    background:#171d26;
-    border:1px solid #293240;
-  }
-  .btn-dark:hover { background:#1d2530; }
-  .progress-track { background:#202731; height:7px; border-radius:999px; overflow:hidden; }
-  .progress-bar { background:#b7f34a; height:100%; border-radius:999px; transition:.3s; }
-  .check {
-    width:21px; height:21px; appearance:none; border-radius:7px;
-    border:1px solid #46505e; background:#0c1016; cursor:pointer; flex:none;
-    position:relative;
-  }
-  .check:checked { background:#b7f34a; border-color:#b7f34a; }
-  .check:checked:after {
-    content:'✓'; position:absolute; color:#090b10; font-size:14px;
-    font-weight:900; left:3px; top:-1px;
-  }
-  .exercise.done { opacity:.58; }
-  .exercise.done .exercise-name { text-decoration:line-through; color:#8b949e; }
-  .exercise.done .exercise-number { background:#b7f34a; color:#090b10; }
-  .exercise-number {
-    width:30px;height:30px;border-radius:9px;background:#1b222c;color:#aab3bf;
-    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex:none;
-  }
-  .modal-backdrop { background:rgba(0,0,0,.78); backdrop-filter:blur(8px); }
-  .modal { animation:pop .16s ease-out; }
-  @keyframes pop { from{opacity:0;transform:translateY(8px) scale(.98)} to{opacity:1;transform:none} }
-  .media-wrap {
-    background:#07090d;
-    border:1px solid #252d38;
-    border-radius:14px;
-    overflow:hidden;
-    min-height:240px;
-  }
-  .media-wrap video,.media-wrap img { width:100%; height:100%; max-height:420px; object-fit:contain; display:block; }
-  .chip { border:1px solid #2b3440; background:#171d26; color:#aeb7c3; }
-  .section-label { color:#7e8998; letter-spacing:.12em; font-size:10px; font-weight:800; text-transform:uppercase; }
-  .toast {
-    position:fixed; left:50%; bottom:28px; transform:translate(-50%,20px);
-    opacity:0; pointer-events:none; transition:.2s; z-index:100;
-    background:#e9f8d2;color:#10150a;border:1px solid #b7f34a;
-    padding:11px 16px;border-radius:12px;font-size:12px;font-weight:800;
-  }
-  .toast.show { opacity:1; transform:translate(-50%,0); }
-  .timer-ring {
-    font-variant-numeric:tabular-nums;
-    letter-spacing:-.04em;
-  }
-  ::-webkit-scrollbar { width:7px;height:7px; }
-  ::-webkit-scrollbar-track { background:#090b10; }
-  ::-webkit-scrollbar-thumb { background:#252d38;border-radius:99px; }
-  ::-webkit-scrollbar-thumb:hover { background:#3a4554; }
-  @media(max-width:640px) {
-    .panel,.card { border-radius:14px; }
-    .media-wrap { min-height:190px; }
-  }
-</style>
-</head>
-
-<body>
-<header class="topbar sticky top-0 z-40">
-  <div class="shell px-4 sm:px-6">
-    <div class="h-[68px] flex items-center justify-between gap-4">
-      <button onclick="goTop()" class="flex items-center gap-3 text-left">
-        <div class="w-9 h-9 rounded-lg bg-lime flex items-center justify-center font-black text-lg">F</div>
-        <div>
-          <div class="font-black tracking-tight text-[15px]">FORGE</div>
-          <div class="text-[10px] text-gray-500 font-semibold tracking-widest uppercase">Powerbuilding System</div>
-        </div>
-      </button>
-
-      <div class="hidden md:flex items-center gap-2 text-[11px] text-gray-500">
-        <span id="headerDate"></span>
-        <span class="w-1 h-1 rounded-full bg-gray-700"></span>
-        <span id="streakText">0 dias registrados</span>
-      </div>
-
-      <button onclick="openSettings()" class="btn-dark w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white" title="Configurações">
-        ⚙
-      </button>
-    </div>
-  </div>
-</header>
-
-<main id="top" class="shell px-4 sm:px-6 pb-28">
-
-  <section class="pt-8 pb-6">
-    <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-      <div>
-        <div class="section-label mb-2">Treino de hoje</div>
-        <h1 id="heroTitle" class="text-3xl sm:text-4xl font-black tracking-tight">UPPER FORÇA</h1>
-        <p id="heroDesc" class="mt-2 text-sm text-gray-500 max-w-2xl">Treino objetivo. Carga, técnica e progressão.</p>
-      </div>
-
-      <div class="w-full lg:w-[330px]">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-[11px] text-gray-500 font-semibold">PROGRESSO</span>
-          <span id="heroProgress" class="text-[11px] font-black text-lime">0%</span>
-        </div>
-        <div class="progress-track"><div id="heroProgressBar" class="progress-bar" style="width:0%"></div></div>
-      </div>
-    </div>
-  </section>
-
-  <nav class="flex gap-6 border-b border-line overflow-x-auto no-scrollbar">
-    <button class="tab active py-3 text-xs font800 whitespace-nowrap" data-tab="workout" onclick="switchTab('workout')">TREINO</button>
-    <button class="tab py-3 text-xs font800 whitespace-nowrap" data-tab="mobility" onclick="switchTab('mobility')">MOBILIDADE</button>
-    <button class="tab py-3 text-xs font800 whitespace-nowrap" data-tab="grip" onclick="switchTab('grip')">PEGADA</button>
-    <button class="tab py-3 text-xs font800 whitespace-nowrap" data-tab="rules" onclick="switchTab('rules')">REGRAS</button>
-  </nav>
-
-  <!-- WORKOUT -->
-  <section id="tab-workout" class="pt-6">
-    <div class="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-      <button class="day active min-w-[76px] rounded-xl py-2.5 px-3" data-day="SEG" onclick="selectDay('SEG')"><div class="text-[9px] uppercase font-bold opacity-60">Seg</div><div class="font-black text-sm">SEG</div></button>
-      <button class="day min-w-[76px] rounded-xl py-2.5 px-3" data-day="TER" onclick="selectDay('TER')"><div class="text-[9px] uppercase font-bold opacity-60">Ter</div><div class="font-black text-sm">TER</div></button>
-      <button class="day min-w-[76px] rounded-xl py-2.5 px-3" data-day="QUA" onclick="selectDay('QUA')"><div class="text-[9px] uppercase font-bold opacity-60">Qua</div><div class="font-black text-sm">QUA</div></button>
-      <button class="day min-w-[76px] rounded-xl py-2.5 px-3" data-day="QUI" onclick="selectDay('QUI')"><div class="text-[9px] uppercase font-bold opacity-60">Qui</div><div class="font-black text-sm">QUI</div></button>
-      <button class="day min-w-[76px] rounded-xl py-2.5 px-3" data-day="SEX" onclick="selectDay('SEX')"><div class="text-[9px] uppercase font-bold opacity-60">Sex</div><div class="font-black text-sm">SEX</div></button>
-      <button class="day min-w-[76px] rounded-xl py-2.5 px-3" data-day="SAB" onclick="selectDay('SAB')"><div class="text-[9px] uppercase font-bold opacity-60">Sáb</div><div class="font-black text-sm">SÁB</div></button>
-      <button class="day min-w-[76px] rounded-xl py-2.5 px-3" data-day="DOM" onclick="selectDay('DOM')"><div class="text-[9px] uppercase font-bold opacity-60">Dom</div><div class="font-black text-sm">DOM</div></button>
-    </div>
-
-    <div class="panel p-4 sm:p-5 mt-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2 mb-1">
-          <span id="dayBadge" class="section-label">SEG — FORÇA</span>
-          <span class="text-gray-700">•</span>
-          <span id="counter" class="text-[11px] text-gray-500">0 / 0</span>
-        </div>
-        <h2 id="workoutTitle" class="text-xl font-black">UPPER FORÇA + CORE</h2>
-        <p id="workoutDesc" class="text-xs text-gray-500 mt-1"></p>
-      </div>
-      <div class="flex gap-2">
-        <button onclick="finalizeWorkout()" class="btn-primary rounded-xl px-4 py-2.5 text-xs">FINALIZAR TREINO</button>
-        <button onclick="resetDay()" class="btn-dark rounded-xl px-3 py-2.5 text-xs text-gray-400 hover:text-white" title="Resetar">↺</button>
-      </div>
-    </div>
-
-    <div id="exerciseGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-4"></div>
-  </section>
-
-  <!-- MOBILITY -->
-  <section id="tab-mobility" class="hidden pt-6">
-    <div class="panel p-5">
-      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <div class="section-label mb-2">10–15 minutos</div>
-          <h2 class="text-2xl font-black">MOBILIDADE</h2>
-          <p class="text-xs text-gray-500 mt-1">Movimento controlado. Sem buscar dor ou amplitude à força.</p>
-        </div>
-        <div class="flex gap-2">
-          <button onclick="startTimer(30)" class="btn-dark rounded-lg px-3 py-2 text-[11px]">30s</button>
-          <button onclick="startTimer(45)" class="btn-dark rounded-lg px-3 py-2 text-[11px]">45s</button>
-          <button onclick="startTimer(60)" class="btn-dark rounded-lg px-3 py-2 text-[11px]">60s</button>
-        </div>
-      </div>
-    </div>
-    <div id="mobilityGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"></div>
-  </section>
-
-  <!-- GRIP -->
-  <section id="tab-grip" class="hidden pt-6">
-    <div class="panel p-5">
-      <div class="section-label mb-2">2x por semana</div>
-      <h2 class="text-2xl font-black">PEGADA & ANTEBRAÇO</h2>
-      <p class="text-xs text-gray-500 mt-1">Força de pegada sem deixar o acessório destruir a recuperação dos treinos principais.</p>
-    </div>
-    <div class="grid md:grid-cols-2 gap-3 mt-4">
-      <div class="card p-4">
-        <div class="flex items-center justify-between mb-4">
-          <div><span class="text-lime text-[10px] font-black">TERÇA</span><h3 class="font-bold mt-1">Após Pull</h3></div>
-          <span class="text-[10px] text-gray-600">4 exercícios</span>
-        </div>
-        <div id="gripTue" class="space-y-2"></div>
-      </div>
-      <div class="card p-4">
-        <div class="flex items-center justify-between mb-4">
-          <div><span class="text-lime text-[10px] font-black">SEXTA</span><h3 class="font-bold mt-1">Após Lower</h3></div>
-          <span class="text-[10px] text-gray-600">4 exercícios</span>
-        </div>
-        <div id="gripFri" class="space-y-2"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- RULES -->
-  <section id="tab-rules" class="hidden pt-6">
-    <div class="panel p-5">
-      <div class="section-label mb-2">Manual</div>
-      <h2 class="text-2xl font-black">REGRAS DO SISTEMA</h2>
-    </div>
-    <div class="grid md:grid-cols-2 gap-3 mt-4">
-      <div class="card p-5"><div class="section-label mb-2 text-lime">01 — INTENSIDADE</div><h3 class="font-bold mb-2">RIR 1–3</h3><p class="text-xs leading-6 text-gray-500">Nos principais movimentos de força, preserve 1–3 repetições em reserva. Técnica quebrada não conta como progressão.</p></div>
-      <div class="card p-5"><div class="section-label mb-2 text-lime">02 — POTÊNCIA</div><h3 class="font-bold mb-2">Velocidade primeiro</h3><p class="text-xs leading-6 text-gray-500">Em movimentos explosivos, encerre a série quando a velocidade cair de forma clara. Não transforme potência em treino de fadiga.</p></div>
-      <div class="card p-5"><div class="section-label mb-2 text-lime">03 — PROGRESSÃO</div><h3 class="font-bold mb-2">Carga com critério</h3><p class="text-xs leading-6 text-gray-500">Bateu o topo da faixa com técnica consistente? Suba a carga no próximo treino. Caso contrário, repita.</p></div>
-      <div class="card p-5"><div class="section-label mb-2 text-lime">04 — DESCANSO</div><h3 class="font-bold mb-2">Recupere para produzir força</h3><p class="text-xs leading-6 text-gray-500">Compostos pesados: 3–5 min. Acessórios: 1–2 min. O cronômetro abaixo existe para tirar decisão da sua cabeça.</p></div>
-    </div>
-  </section>
-</main>
-
-<!-- TIMER -->
-<div id="timerBar" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 panel px-3 py-2 flex items-center gap-3 shadow-2xl">
-  <div>
-    <div class="text-[9px] text-gray-600 font-black tracking-widest">DESCANSO</div>
-    <div id="timerDisplay" class="timer-ring text-xl font-black text-lime">03:00</div>
-  </div>
-  <button id="timerToggle" onclick="toggleTimer()" class="btn-primary rounded-lg w-9 h-9 text-xs">▶</button>
-  <button onclick="startTimer(180)" class="btn-dark rounded-lg px-2.5 py-2 text-[10px]">3m</button>
-  <button onclick="startTimer(120)" class="btn-dark rounded-lg px-2.5 py-2 text-[10px]">2m</button>
-  <button onclick="startTimer(60)" class="btn-dark rounded-lg px-2.5 py-2 text-[10px]">1m</button>
-</div>
-
-<!-- EXERCISE MODAL -->
-<div id="exerciseModal" class="hidden fixed inset-0 z-50 modal-backdrop p-3 sm:p-6 items-center justify-center">
-  <div class="modal panel w-full max-w-3xl max-h-[92vh] overflow-y-auto">
-    <div class="p-4 sm:p-5 border-b border-line flex items-start justify-between gap-4">
-      <div>
-        <div id="modalMuscles" class="section-label text-lime mb-1">GRUPO MUSCULAR</div>
-        <h2 id="modalTitle" class="text-xl sm:text-2xl font-black">Exercício</h2>
-      </div>
-      <button onclick="closeModal()" class="btn-dark rounded-lg w-9 h-9 text-gray-400">✕</button>
-    </div>
-
-    <div class="p-4 sm:p-5 space-y-4">
-      <div class="media-wrap relative">
-        <video id="modalVideo" controls autoplay loop muted playsinline preload="metadata"></video>
-        <img id="modalImage" class="hidden" alt="Demonstração do exercício">
-        <div id="mediaFallback" class="hidden absolute inset-0 flex items-center justify-center text-xs text-gray-600">Demonstração indisponível.</div>
-      </div>
-
-      <div class="flex flex-wrap gap-2">
-        <span id="modalSeries" class="chip rounded-lg px-2.5 py-1 text-[10px]"></span>
-        <span id="modalRest" class="chip rounded-lg px-2.5 py-1 text-[10px]"></span>
-        <span id="modalRir" class="chip rounded-lg px-2.5 py-1 text-[10px]"></span>
-      </div>
-
-      <div class="grid md:grid-cols-2 gap-3">
-        <div class="card p-4">
-          <div class="section-label mb-2">Execução</div>
-          <ul id="modalRules" class="space-y-2 text-xs text-gray-400 leading-5"></ul>
-        </div>
-        <div class="card p-4">
-          <div class="section-label mb-2">Ponto de atenção</div>
-          <p id="modalTip" class="text-xs text-gray-400 leading-6"></p>
-          <div class="mt-4 pt-4 border-t border-line">
-            <div class="section-label mb-2">Cadência</div>
-            <div id="modalCadence" class="text-sm font-bold"></div>
-          </div>
-        </div>
-      </div>
-
-      <p class="text-[10px] text-gray-600">Demonstrações visuais são referência técnica; ajuste amplitude e carga à sua execução.</p>
-    </div>
-  </div>
-</div>
-
-
-<!-- WORKOUT LOG MODAL -->
-<div id="workoutLogModal" class="hidden fixed inset-0 z-50 modal-backdrop p-3 sm:p-6 items-center justify-center">
-  <div class="modal panel w-full max-w-4xl max-h-[92vh] overflow-y-auto">
-    <div class="p-4 sm:p-5 border-b border-line flex items-start justify-between gap-4 sticky top-0 bg-[#10141b] z-10">
-      <div>
-        <div class="section-label text-lime mb-1">REGISTRO DO TREINO</div>
-        <h2 class="text-xl sm:text-2xl font-black">Registrar séries e repetições</h2>
-        <p id="logWorkoutSubtitle" class="text-xs text-gray-500 mt-1"></p>
-      </div>
-      <button onclick="closeWorkoutLog()" class="btn-dark rounded-lg w-9 h-9 text-gray-400">✕</button>
-    </div>
-    <div class="p-4 sm:p-5 space-y-5">
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">Data do treino</label>
-        <input id="workoutLogDate" type="date" class="w-full sm:w-auto bg-[#0b0f14] border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-lime">
-      </div>
-      <div id="workoutLogExercises" class="space-y-3"></div>
-      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-line">
-        <button onclick="closeWorkoutLog()" class="btn-dark rounded-xl px-4 py-3 text-xs">CANCELAR</button>
-        <button id="submitWorkoutLogButton" onclick="saveExerciseLog()" class="btn-primary rounded-xl px-5 py-3 text-xs">SALVAR EXERCÍCIO</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- SETTINGS -->
-<div id="settingsModal" class="hidden fixed inset-0 z-50 modal-backdrop p-4 items-center justify-center">
-  <div class="modal panel w-full max-w-md p-5">
-    <div class="flex justify-between items-center mb-5">
-      <div><div class="section-label">Perfil</div><h2 class="text-xl font-black">CONFIGURAÇÕES</h2></div>
-      <button onclick="closeSettings()" class="btn-dark rounded-lg w-9 h-9">✕</button>
-    </div>
-    <label class="block text-xs text-gray-500 mb-1">Nome</label>
-    <input id="userName" class="w-full bg-[#0b0f14] border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-lime" placeholder="Seu nome">
-    <label class="block text-xs text-gray-500 mb-1 mt-4">Peso atual (kg)</label>
-    <input id="userWeight" type="number" class="w-full bg-[#0b0f14] border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-lime" placeholder="70">
-    <button onclick="saveSettings()" class="btn-primary w-full rounded-xl py-3 text-xs mt-5">SALVAR</button>
-    <button onclick="clearAllProgress()" class="w-full mt-2 py-2.5 text-[11px] text-red-400 hover:text-red-300">Apagar todo o progresso local</button>
-  </div>
-</div>
-
-<div id="toast" class="toast">Salvo</div>
-
-<script>
-const MEDIA = {
-  squat: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Squat%20-%20exercise%20demonstration%20video.webm",
-  bench: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Bench%20press%20-%20exercise%20demonstration%20video.webm",
-  deadlift: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Deadlift%20-%20exercise%20demonstration%20video.webm",
-  pullup: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Pull-ups%20-%20exercise%20demonstration%20video.webm",
-  row: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Bent-over%20row%20-%20exercise%20demonstration%20video.webm",
-  incline: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Incline%20press%20-%20exercise%20demonstration%20video.webm",
-  shoulder: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Shoulder%20press%20-%20exercise%20demonstration%20video.webm",
-  legraise: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Leg%20raises%20-%20exercise%20demonstration%20video.webm",
-  farmer: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Kettlebell%20Farmer%20Walks.webm"
-};
-
-const WORKOUTS = {
-  SEG:{title:"UPPER FORÇA + CORE", badge:"SEG — FORÇA", desc:"Carga e técnica nos compostos superiores + estabilidade de tronco.", exercises:[
-    ["s1","Supino reto","4×3–5","3–5 min","RIR 1–2","bench","PEITORAL / TRÍCEPS / OMBROS","3-0-1-0","Escápulas firmes, pés plantados e trajetória consistente.",["Retraia e deprima as escápulas.","Use leg drive sem perder a posição do tronco.","Toque de forma controlada e empurre com velocidade."]],
-    ["s2","Barra fixa com peso","4×3–6","3–5 min","RIR 1–2","pullup","DORSAIS / BÍCEPS / CORE","2-1-1-0","Comece puxando com as escápulas; evite balanço.",["Corpo estável durante a série.","Puxe o peito em direção à barra.","Controle a descida até extensão confortável."]],
-    ["s3","Desenvolvimento militar","3×4–6","3 min","RIR 2","shoulder","OMBROS / TRÍCEPS","2-0-1-0","Mantenha costelas controladas e barra próxima do corpo.",["Glúteos e abdômen ativos.","Evite compensar com hiperextensão lombar.","Finalize acima da cabeça sem perder controle."]],
-    ["s4","Remada curvada","3×4–6","2–3 min","RIR 2","row","DORSAIS / ROMBOIDES / BÍCEPS","2-1-1-0","Tronco estável; mova a carga com as costas.",["Mantenha a coluna neutra.","Puxe os cotovelos para trás.","Não transforme a série em balanço."]],
-    ["s5","Paralelas com peso","3×5–8","2 min","RIR 2","bench","PEITORAL / TRÍCEPS","2-0-1-0","Desça somente até a amplitude que mantém controle.",["Ombros estáveis.","Cotovelos acompanham o movimento.","Suba sem perder a posição do tronco."]],
-    ["s6","Ab Wheel","4×6–10","1–2 min","Controle","legraise","CORE","3-0-1-0","Evite deixar a lombar assumir o movimento.",["Contraia abdômen e glúteos.","Role somente até manter a posição.","Retorne sem puxar apenas com os braços."]],
-    ["s7","Pallof Press","3×8–12/lado","1 min","Isometria","shoulder","CORE / ANTI-ROTAÇÃO","1-2-1-0","Resista à rotação em vez de girar o tronco.",["Quadril e ombros alinhados.","Pause com braços estendidos.","Respire mantendo tensão."]],
-    ["s8","Farmer Walk","4×20–40m","2 min","Carga alta","farmer","PEGADA / TRAPÉZIO / CORE","Contínuo","Passos curtos e postura alta.",["Pegue as cargas com controle.","Não deixe os ombros colapsarem.","Caminhe com tronco estável."]]
-  ]},
-  TER:{title:"LOWER FORÇA",badge:"TER — LOWER",desc:"Base de força de pernas, cadeia posterior e trabalho complementar de pegada.",exercises:[
-    ["t1","Agachamento","4×3–5","3–5 min","RIR 1–2","squat","QUADRÍCEPS / GLÚTEOS / CORE","3-1-1-0","Joelhos acompanham os pés; mantenha pressão no meio do pé.",["Desça com controle.","Mantenha o tronco estável.","Suba empurrando o chão de forma uniforme."]],
-    ["t2","Terra","3×3–5","3–5 min","RIR 1–2","deadlift","POSTERIOR / GLÚTEOS / COSTAS","1-0-1-0","Tire a folga da barra antes de iniciar.",["Barra próxima às pernas.","Dorsais firmes.","Estenda quadril e joelhos juntos."]],
-    ["t3","Bulgarian Split Squat","3×6–8/lado","2 min","RIR 2","squat","QUADRÍCEPS / GLÚTEOS","2-0-1-0","Controle a descida e mantenha o pé da frente firme.",["Joelho acompanha o pé.","Evite perder equilíbrio.","Use amplitude que consiga controlar."]],
-    ["t4","RDL / Stiff","3×6–8","2 min","RIR 2","deadlift","POSTERIOR / GLÚTEOS","3-0-1-0","Pense em levar o quadril para trás.",["Joelhos levemente flexionados.","Barra próxima ao corpo.","Pare quando perder posição da coluna."]],
-    ["t5","Panturrilha","4×8–12","1 min","Pausa no topo","squat","PANTURRILHAS","2-1-2-0","Amplitude completa e pausa no topo.",["Alongue sem quicar.","Pause no topo.","Controle a descida."]],
-    ["t6","Mobilidade quadril/tornozelo","10–15 min","Livre","Leve","squat","QUADRIL / TORNOZELO","Controlado","Amplitude confortável, sem dor.",["Movimento lento.","Não force amplitude.","Respiração normal."]],
-    ["t7","Dead Hang","3×20–60s","1–2 min","Controle","pullup","PEGADA / OMBROS","Isométrico","Aperte a barra e mantenha o corpo controlado.",["Evite balanço.","Respire normalmente.","Pare se houver dor aguda."]]
-  ]},
-  QUA:{title:"UPPER HIPERTROFIA + CARDIO",badge:"QUA — VOLUME",desc:"Volume muscular com condicionamento aeróbico moderado.",exercises:[
-    ["q1","Supino inclinado","3×6–10","2 min","RIR 1","incline","PEITORAL SUPERIOR / TRÍCEPS","2-0-1-0","Controle a descida e mantenha escápulas estáveis.",["Banco em inclinação moderada.","Não perca a posição dos ombros.","Suba com controle."]],
-    ["q2","Barra fixa / puxada","3×8–12","2 min","RIR 1–2","pullup","DORSAIS / BÍCEPS","2-1-1-0","Evite transformar em balanço.",["Inicie com escápulas.","Puxe cotovelos para baixo.","Controle a volta."]],
-    ["q3","Remada apoiada","3×8–12","90s","RIR 1","row","COSTAS","2-1-1-0","Use o apoio para tirar impulso.",["Peito apoiado.","Cotovelos para trás.","Pausa curta na contração."]],
-    ["q4","Desenvolvimento halteres","3×8–12","90s","RIR 1","shoulder","OMBROS","2-0-1-0","Controle as duas mãos de forma simétrica.",["Punhos neutros.","Não compense com lombar.","Amplitude confortável."]],
-    ["q5","Elevação lateral","3×12–20","60s","RIR 1","shoulder","DELTOIDES","2-0-2-0","Suba com controle e sem balanço.",["Cotovelos conduzem.","Não transforme em encolhimento.","Controle a descida."]],
-    ["q6","Rosca martelo","3×8–12","60s","RIR 1","shoulder","BÍCEPS / BRAQUIORRADIAL","2-0-2-0","Mantenha o cotovelo estável.",["Evite jogar o tronco.","Controle a descida.","Amplitude confortável."]],
-    ["q7","Tríceps","3×10–15","60s","RIR 1","bench","TRÍCEPS","2-0-2-0","Movimento concentrado no cotovelo.",["Ombros estáveis.","Não use impulso.","Contraia no final."]],
-    ["q8","Cardio moderado","10–15 min","Contínuo","Zona 2","squat","CARDIO","Contínuo","Ritmo sustentável.",["Consiga conversar com frases curtas.","Mantenha ritmo constante.","Finalize sem sprintar."]]
-  ]},
-  QUI:{title:"LOWER POTÊNCIA + CORE",badge:"QUI — POWER",desc:"Explosão, saltos e estabilidade do tronco.",exercises:[
-    ["qu1","Agachamento","3×5","3 min","Explosivo","squat","PERNAS / CORE","2-0-X-0","Suba com máxima velocidade mantendo técnica.",["Carga moderada.","Pare se a velocidade cair muito.","Mantenha a técnica."]],
-    ["qu2","Terra / Rack Pull","3×3–5","3 min","Explosivo","deadlift","CADEIA POSTERIOR","1-0-X-0","Priorize aceleração.",["Não busque falha.","Barra próxima.","Pare ao perder velocidade."]],
-    ["qu3","Box Jump","4×3","2 min","Velocidade máxima","squat","POTÊNCIA DE PERNAS","Explosivo","Poucas repetições, alta qualidade.",["Pouse silenciosamente.","Escolha altura segura.","Descanse o suficiente."]],
-    ["qu4","Walking Lunge","3×8/lado","90s","Controlado","squat","PERNAS / GLÚTEOS","2-0-1-0","Passos estáveis e tronco firme.",["Joelho acompanha o pé.","Não desabe o quadril.","Controle cada passo."]],
-    ["qu5","Mesa flexora","3×8–12","90s","RIR 1","deadlift","POSTERIOR","2-1-2-0","Controle a volta.",["Quadril apoiado.","Pausa curta na contração.","Não use impulso."]],
-    ["qu6","Medicine Ball Rotation","4×5/lado","60s","Rápido","farmer","CORE / ROTAÇÃO","Explosivo","Rotação rápida com controle.",["Gire pelo tronco e quadril.","Não force amplitude.","Poucas repetições."]],
-    ["qu7","Landmine Rotation","3×6–8/lado","60s","Controlado","farmer","CORE / OMBROS","2-0-1-0","Movimento fluido.",["Pés firmes.","Não hiperestenda a lombar.","Controle a carga."]],
-    ["qu8","Suitcase Carry","4×20–30m/lado","60s","Postura firme","farmer","CORE / PEGADA","Contínuo","Não deixe o peso inclinar seu corpo.",["Ombros nivelados.","Passos curtos.","Abdômen ativo."]],
-    ["qu9","Hanging Leg Raise","3×8–12","60s","Sem balanço","legraise","CORE / FLEXORES DO QUADRIL","2-1-2-0","Eleve sem usar balanço.",["Controle a descida.","Evite impulso.","Pare antes de perder controle."]]
-  ]},
-  SEX:{title:"FULL BODY ATLÉTICO",badge:"SEX — ATHLETIC",desc:"Força global, potência e capacidade de transportar carga.",exercises:[
-    ["sx1","Front Squat","3×5–8","2,5 min","RIR 2","squat","QUADRÍCEPS / CORE","3-0-1-0","Mantenha cotovelos altos e tronco firme.",["Barra apoiada com segurança.","Respire e estabilize.","Suba mantendo postura."]],
-    ["sx2","Push Press","4×3–5","2,5 min","Explosivo","shoulder","OMBROS / TRÍCEPS / PERNAS","X-0-X-0","Use pernas para acelerar a barra.",["Mergulho curto.","Transfira força para a barra.","Pare quando perder velocidade."]],
-    ["sx3","Barra fixa","3×6–10","2 min","RIR 1–2","pullup","DORSAIS / BÍCEPS","2-1-1-0","Sem balanço desnecessário.",["Escápulas ativas.","Peito em direção à barra.","Controle a descida."]],
-    ["sx4","Dips / Paralelas","3×8–12","2 min","RIR 1–2","bench","PEITORAL / TRÍCEPS","2-0-1-0","Amplitude sob controle.",["Ombros estáveis.","Não desça além do controle.","Suba com força."]],
-    ["sx5","Kettlebell Swing","4×10–15","90s","Potência de quadril","deadlift","GLÚTEOS / POSTERIOR","Explosivo","É um hinge, não um agachamento.",["Quadril gera o movimento.","Braços apenas acompanham.","Coluna neutra."]],
-    ["sx6","Farmer Walk","3×30–50m","2 min","Pesado","farmer","PEGADA / TRAPÉZIO / CORE","Contínuo","Caminhe alto e estável.",["Pegada forte.","Passos curtos.","Não incline o tronco."]],
-    ["sx7","Bear-Hug Carry","3×20–30m","2 min","Pesado","farmer","CORE / CORPO TODO","Contínuo","Mantenha a carga próxima.",["Respire sob tensão.","Caminhe controlado.","Não perca postura."]],
-    ["sx8","Towel Hang","3×máximo","1–2 min","Controle","pullup","PEGADA","Isométrico","Aumente a dificuldade gradualmente.",["Toalha firme.","Sem balanço.","Pare antes da perda de controle."]]
-  ]},
-  SAB:{title:"BOXE + CONDICIONAMENTO",badge:"SÁB — BOXE",desc:"Técnica, reação, potência e condicionamento.",exercises:[
-    ["sb1","Aquecimento dinâmico","10 min","Contínuo","Leve","squat","CORPO TODO","Controlado","Aumente a temperatura sem fadigar.",["Movimentos amplos.","Ritmo progressivo.","Sem dor."]],
-    ["sb2","Shadowboxing","4×3 min","1 min","Ritmo de luta","farmer","CORPO TODO","Contínuo","Técnica antes de velocidade.",["Mantenha guarda.","Trabalhe deslocamento.","Respire."]],
-    ["sb3","Heavy Bag","5×3 min","1 min","Alta intensidade","farmer","CORPO TODO","Contínuo","Potência com técnica.",["Punhos protegidos.","Quadril participa.","Não sacrifique técnica."]],
-    ["sb4","Treino de reflexo","10 min","Livre","Foco ágil","pullup","COORDENAÇÃO","Contínuo","Qualidade e reação.",["Movimento leve.","Foco visual.","Não exagere na fadiga."]],
-    ["sb5","Medicine Ball Arremessos","3×5","1 min","Potência total","farmer","CORE / POTÊNCIA","Explosivo","Cada repetição deve ser rápida.",["Escolha carga leve/moderada.","Exploda sem perder controle.","Descanse."]],
-    ["sb6","Cardio final","15–25 min","Moderado","Zona 2–3","squat","CARDIO","Contínuo","Termine com ritmo sustentável.",["Mantenha cadência.","Hidrate-se.","Evite sprint se estiver muito fatigado."]],
-    ["sb7","Mobilidade pós-treino","10 min","Livre","Alongamento leve","squat","MOBILIDADE","Controlado","Desacelere gradualmente.",["Respire.","Não force.","Movimentos lentos."]]
-  ]},
-  DOM:{title:"RECOVERY",badge:"DOM — RECOVERY",desc:"Recuperação, caminhada leve, mobilidade opcional e sono.",exercises:[
-    ["d1","Descanso","Dia todo","N/A","Zero estresse","squat","RECUPERAÇÃO","Livre","O treino também inclui saber não treinar.",["Priorize sono.","Alimente-se normalmente.","Evite transformar recuperação em outro treino."]],
-    ["d2","Mobilidade leve","15–20 min","Livre","Relaxante","squat","MOBILIDADE","Controlado","Movimentos fáceis e confortáveis.",["Sem dor.","Respire.","Não busque recordes de amplitude."]],
-    ["d3","Caminhada leve","20–40 min","Livre","Lazer","squat","CARDIO LEVE","Contínuo","Ritmo confortável.",["Conversa normal.","Sem necessidade de intensidade.","Hidrate-se."]]
-  ]}
-};
-
-const MOBILITY = [
-  ["PESCOÇO",["Inclinação lateral — 5x/lado","Rotação — 5x/lado"]],
-  ["OMBROS",["Círculos de braço — 10x/direção","Wall slides — 2×10"]],
-  ["PUNHOS",["Círculos — 10x/direção","Flexores/extensores — 20–30s"]],
-  ["COLUNA",["Cat-Cow — 10 reps","Rotação torácica — 8x/lado"]],
-  ["QUADRIL",["90/90 Hip Switch — 2×8/lado","Pigeon / glute stretch — 30s/lado"]],
-  ["ADUTORES",["Cossack squat — 2×6/lado"]],
-  ["POSTERIOR",["RDL sem peso — 2×10"]],
-  ["TORNOZELO",["Knee-to-wall — 2×10/lado"]],
-  ["FINAL",["Agachamento profundo assistido — 2×30s"]]
-];
-
-const GRIP = {
-  tue:[["Dead Hang","3×20–60s","pullup"],["Wrist Curl","3×10–15","shoulder"],["Reverse Wrist Curl","3×10–15","shoulder"],["Pinch Grip","3×20–40s","farmer"]],
-  fri:[["Farmer Hold","3×20–40s","farmer"],["Towel Hang","3×máximo","pullup"],["Extensão dos dedos","3×20–30","shoulder"],["Wrist Roller","2–3 subidas","shoulder"]]
-};
-
-let currentDay = "SEG";
-let timerSeconds = 180;
-let timerInterval = null;
-let timerRunning = false;
-const todayKey = new Date().toISOString().slice(0,10);
-
-function getProgress() {
-  return JSON.parse(localStorage.getItem("forge_progress_v2") || "{}");
-}
-function setProgress(p) {
-  localStorage.setItem("forge_progress_v2", JSON.stringify(p));
-}
-function isDone(id) {
-  const p = getProgress();
-  return !!(p[todayKey] && p[todayKey][id]);
-}
-function toggleExercise(id) {
-  const p = getProgress();
-  if (!p[todayKey]) p[todayKey] = {};
-  if (p[todayKey][id]) {
-    p[todayKey][id] = false;
-    setProgress(p);
-    renderWorkout();
-    return;
-  }
-  openExerciseLog(id);
-}
-function renderWorkout() {
-  const d = WORKOUTS[currentDay];
-  document.getElementById("heroTitle").textContent = d.title;
-  document.getElementById("heroDesc").textContent = d.desc;
-  document.getElementById("dayBadge").textContent = d.badge;
-  document.getElementById("workoutTitle").textContent = d.title;
-  document.getElementById("workoutDesc").textContent = d.desc;
-
-  document.querySelectorAll(".day").forEach(b => b.classList.toggle("active", b.dataset.day === currentDay));
-
-  const grid = document.getElementById("exerciseGrid");
-  grid.innerHTML = d.exercises.map((x,i) => {
-    const [id,name,series,rest,rir,media,muscles,cadence,tip,rules] = x;
-    const done = isDone(id);
-    return `
-      <article class="exercise card p-4 ${done ? "done" : ""}">
-        <div class="flex items-start gap-3">
-          <input class="check mt-1" type="checkbox" ${done ? "checked" : ""} onchange="toggleExercise('${id}')">
-          <div class="exercise-number">${String(i+1).padStart(2,"0")}</div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <h3 class="exercise-name font-bold text-[14px]">${name}</h3>
-                <div class="flex flex-wrap gap-1.5 mt-2">
-                  <span class="chip rounded-md px-2 py-1 text-[9px] font-bold">${series}</span>
-                  <span class="chip rounded-md px-2 py-1 text-[9px]">${rest}</span>
-                  <span class="chip rounded-md px-2 py-1 text-[9px]">${rir}</span>
-                </div>
-                ${renderSetProgress(id, series)}
-              </div>
-              <div class="flex items-center gap-1.5 shrink-0">
-                ${done ? `<button onclick="openExerciseLog('${id}')" class="btn-dark rounded-lg px-2.5 py-2 text-[10px] font-bold">✎ EDITAR</button>` : ``}
-                <button onclick="openExercise(${JSON.stringify(x).replace(/"/g,'&quot;')})" class="btn-dark rounded-lg px-2.5 py-2 text-[10px] font-bold">▶ DEMO</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </article>`;
-  }).join("");
-
-  const total = d.exercises.length;
-  const done = d.exercises.filter(x => isDone(x[0])).length;
-  const pct = Math.round(done/total*100);
-  document.getElementById("counter").textContent = `${done} / ${total} concluídos`;
-  document.getElementById("heroProgress").textContent = `${pct}%`;
-  document.getElementById("heroProgressBar").style.width = `${pct}%`;
-}
-function selectDay(day) { currentDay = day; renderWorkout(); }
-function getLocalDateString(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+// Último treino registrado (antes da data informada) desse exercício
+function getLastPerformance(exerciseId, beforeDate) {
+  const logs = getWorkoutLogs()
+    .filter(l => l.workout_date < beforeDate && l.exercises?.some(e => e.exercise_id === exerciseId))
+    .sort((a, b) => (a.workout_date < b.workout_date ? 1 : -1));
+  if (!logs.length) return null;
+  const ex = logs[0].exercises.find(e => e.exercise_id === exerciseId);
+  return { date: logs[0].workout_date, sets: ex.sets || [] };
 }
 
-function getSetCount(seriesText) {
-  const match = String(seriesText).match(/^(\d+)×/);
-  return match ? Number(match[1]) : 1;
+// Aceita "82,5" e "82.5"; vazio vira null
+function parseNum(raw) {
+  const s = String(raw ?? "").trim().replace(",", ".");
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
 }
 
-function getWorkoutLogs() {
-  return JSON.parse(localStorage.getItem("forge_workout_logs") || "[]");
-}
 
-function getExerciseLog(exerciseId, workoutDate = getLocalDateString()) {
-  return getWorkoutLogs().find(log =>
-    log.workout_date === workoutDate &&
-    log.workout_day === currentDay &&
-    log.exercises?.some(ex => ex.exercise_id === exerciseId)
-  ) || null;
-}
-
-function getExerciseSetData(exerciseId, workoutDate = getLocalDateString()) {
-  const log = getExerciseLog(exerciseId, workoutDate);
-  const exercise = log?.exercises?.find(ex => ex.exercise_id === exerciseId);
-  return exercise?.sets || [];
-}
-
-function getFilledSetCount(exerciseId, seriesText, workoutDate = getLocalDateString()) {
-  const setCount = getSetCount(seriesText);
-  const sets = getExerciseSetData(exerciseId, workoutDate);
-  return sets.slice(0, setCount).filter(set => set.reps !== null && set.reps !== undefined && set.reps !== "").length;
-}
-
-function renderSetProgress(exerciseId, seriesText) {
-  const total = getSetCount(seriesText);
-  const filled = getFilledSetCount(exerciseId, seriesText);
-  const pct = total ? Math.round((filled / total) * 100) : 0;
-  return `
-    <div class="mt-3 max-w-sm">
-      <div class="flex items-center justify-between mb-1.5">
-        <span class="text-[9px] uppercase tracking-wider text-gray-600 font-bold">Progresso das séries</span>
-        <span class="text-[10px] font-black ${filled === total ? "text-lime" : "text-gray-400"}">${filled}/${total}</span>
-      </div>
-      <div class="h-1.5 rounded-full bg-[#0b0f14] border border-line overflow-hidden">
-        <div class="h-full bg-lime transition-all duration-300" style="width:${pct}%"></div>
-      </div>
-    </div>`;
-}
-
-function toggleExercise(id) {
-  const p = getProgress();
-  if (!p[todayKey]) p[todayKey] = {};
-
-  // Um exercício já marcado continua marcado e abre o mesmo registro para edição.
-  // Assim o usuário pode preencher as séries aos poucos sem perder o que já digitou.
-  if (p[todayKey][id]) {
-    openExerciseLog(id);
-    return;
-  }
-
-  openExerciseLog(id);
-}
+// ---------- 2) SUBSTITUI openExerciseLog ----------
 
 function openExerciseLog(exerciseId) {
   const workout = WORKOUTS[currentDay];
@@ -634,14 +45,41 @@ function openExerciseLog(exerciseId) {
 
   const setCount = getSetCount(series);
   const savedSets = getExerciseSetData(id, workoutDate);
-  const fields = Array.from({length:setCount}, (_,i) => {
-    const saved = savedSets.find(set => set.set_number === i + 1);
-    const value = saved?.reps !== null && saved?.reps !== undefined ? saved.reps : "";
+  const last = getLastPerformance(id, workoutDate);
+
+  const fields = Array.from({ length: setCount }, (_, i) => {
+    const n = i + 1;
+    const saved = savedSets.find(set => set.set_number === n);
+    const lastSet = last?.sets.find(set => set.set_number === n) || last?.sets[last.sets.length - 1];
+
+    const reps = saved?.reps ?? "";
+    // Carga: usa a salva hoje; senão sugere a do último treino
+    const weight = saved?.weight ?? lastSet?.weight ?? "";
+    const hint = lastSet && (lastSet.reps || lastSet.weight)
+      ? `Última: ${lastSet.weight ?? "—"} kg × ${lastSet.reps ?? "—"}`
+      : "";
+
     return `
-      <label class="block">
-        <span class="block text-[9px] uppercase tracking-wider text-gray-600 font-bold mb-1">Série ${i+1} · Reps</span>
-        <input type="number" min="0" step="1" inputmode="numeric" data-exercise-id="${id}" data-set-number="${i+1}" value="${value}" class="workout-reps w-full bg-[#0b0f14] border border-line rounded-lg px-3 py-2.5 text-sm outline-none focus:border-lime" placeholder="Reps">
-      </label>`;
+      <div class="rounded-xl border border-line bg-[#0b0f14] p-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] uppercase tracking-wider text-gray-500 font-black">Série ${n}</span>
+          <span class="text-[9px] text-gray-600">${hint}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="block">
+            <span class="block text-[9px] uppercase tracking-wider text-gray-600 font-bold mb-1">Carga (kg)</span>
+            <input type="text" inputmode="decimal" data-field="weight" data-exercise-id="${id}" data-set-number="${n}"
+                   value="${weight}" placeholder="0"
+                   class="w-full bg-[#10141b] border border-line rounded-lg px-3 py-2.5 text-sm outline-none focus:border-lime">
+          </label>
+          <label class="block">
+            <span class="block text-[9px] uppercase tracking-wider text-gray-600 font-bold mb-1">Reps</span>
+            <input type="number" min="0" step="1" inputmode="numeric" data-field="reps" data-exercise-id="${id}" data-set-number="${n}"
+                   value="${reps}" placeholder="Reps"
+                   class="w-full bg-[#10141b] border border-line rounded-lg px-3 py-2.5 text-sm outline-none focus:border-lime">
+          </label>
+        </div>
+      </div>`;
   }).join("");
 
   const filled = getFilledSetCount(id, series, workoutDate);
@@ -650,7 +88,7 @@ function openExerciseLog(exerciseId) {
   document.getElementById("workoutLogExercises").innerHTML = `
     <div class="card p-4">
       <div class="flex items-center gap-3 mb-3">
-        <div class="exercise-number">${String(workout.exercises.findIndex(x => x[0] === id)+1).padStart(2,"0")}</div>
+        <div class="exercise-number">${String(workout.exercises.findIndex(x => x[0] === id) + 1).padStart(2, "0")}</div>
         <div class="min-w-0 flex-1">
           <h3 class="font-bold text-sm">${name}</h3>
           <div class="flex flex-wrap gap-1.5 mt-1.5">
@@ -668,41 +106,23 @@ function openExerciseLog(exerciseId) {
         <div class="h-2 rounded-full bg-[#0b0f14] border border-line overflow-hidden">
           <div class="h-full bg-lime transition-all duration-300" style="width:${pct}%"></div>
         </div>
-        <p class="text-[10px] text-gray-600 mt-2">Você pode salvar agora e completar as próximas séries depois.</p>
+        <p class="text-[10px] text-gray-600 mt-2">A carga vem preenchida com a do último treino. Ajuste se mudou. Em exercícios sem peso, deixe vazio ou 0.</p>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${fields}</div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${fields}</div>
     </div>`;
 
   document.getElementById("workoutLogModal").classList.remove("hidden");
   document.body.style.overflow = "hidden";
-  const firstEmpty = document.querySelector(`[data-exercise-id="${id}"][data-set-number="${savedSets.length + 1}"]`) || document.querySelector(`[data-exercise-id="${id}"][data-set-number="1"]`);
-  if (firstEmpty) setTimeout(() => firstEmpty.focus(), 0);
+
+  // Foca na primeira série sem reps
+  const emptyReps = Array.from(document.querySelectorAll(`[data-field="reps"][data-exercise-id="${id}"]`))
+    .find(el => el.value === "");
+  const target = emptyReps || document.querySelector(`[data-field="reps"][data-exercise-id="${id}"]`);
+  if (target) setTimeout(() => target.focus(), 0);
 }
 
-function openWorkoutLog() {
-  const workout = WORKOUTS[currentDay];
-  const dateInput = document.getElementById("workoutLogDate");
-  dateInput.value = getLocalDateString();
-  dateInput.max = getLocalDateString();
-  delete dateInput.dataset.exerciseId;
-  document.getElementById("logWorkoutSubtitle").textContent = `${workout.badge} · ${workout.title}`;
 
-  document.getElementById("workoutLogExercises").innerHTML = `
-    <div class="card p-4">
-      <p class="text-sm text-gray-400">
-        Marque um exercício para registrar as séries e repetições. Cada registro fica salvo localmente.
-        O envio para o backend acontece somente em <strong class="text-white">FINALIZAR TREINO</strong>.
-      </p>
-    </div>`;
-
-  document.getElementById("workoutLogModal").classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-}
-
-function closeWorkoutLog() {
-  document.getElementById("workoutLogModal").classList.add("hidden");
-  document.body.style.overflow = "";
-}
+// ---------- 3) SUBSTITUI buildExercisePayload ----------
 
 function buildExercisePayload(exerciseId) {
   const workout = WORKOUTS[currentDay];
@@ -725,316 +145,17 @@ function buildExercisePayload(exerciseId) {
       exercise_name: name,
       prescribed_series: prescribedSeries,
       sets: Array.from({ length: setCount }, (_, i) => {
-        const input = document.querySelector(`[data-exercise-id="${id}"][data-set-number="${i + 1}"]`);
-        const raw = input ? input.value.trim() : "";
-        const previous = previousSets.find(set => set.set_number === i + 1);
-        return {
-          set_number: i + 1,
-          reps: raw !== "" ? Number(raw) : (previous?.reps ?? null)
-        };
+        const n = i + 1;
+        const repsEl = document.querySelector(`[data-field="reps"][data-exercise-id="${id}"][data-set-number="${n}"]`);
+        const kgEl = document.querySelector(`[data-field="weight"][data-exercise-id="${id}"][data-set-number="${n}"]`);
+        const previous = previousSets.find(set => set.set_number === n);
+
+        const repsRaw = repsEl ? repsEl.value.trim() : "";
+        const reps = repsRaw !== "" ? Number(repsRaw) : (previous?.reps ?? null);
+        const weight = kgEl ? parseNum(kgEl.value) : (previous?.weight ?? null);
+
+        return { set_number: n, reps, weight };
       })
     }]
   };
 }
-
-function saveExerciseLog() {
-  const workoutDate = document.getElementById("workoutLogDate").value;
-  const exerciseId = document.getElementById("workoutLogDate").dataset.exerciseId;
-
-  if (!workoutDate || !exerciseId) {
-    toast("Selecione um exercício para registrar.");
-    return;
-  }
-
-  const payload = buildExercisePayload(exerciseId);
-  if (!payload) {
-    toast("Não foi possível identificar o exercício.");
-    return;
-  }
-
-  const hasAnyValue = payload.exercises[0].sets.some(set => set.reps !== null);
-  if (!hasAnyValue) {
-    toast("Informe pelo menos uma série.");
-    return;
-  }
-
-  const localLogs = JSON.parse(localStorage.getItem("forge_workout_logs") || "[]");
-  const existingIndex = localLogs.findIndex(log =>
-    log.workout_date === workoutDate &&
-    log.workout_day === currentDay &&
-    log.exercises?.some(ex => ex.exercise_id === exerciseId)
-  );
-
-  const record = {
-    local_id: existingIndex >= 0
-      ? localLogs[existingIndex].local_id
-      : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
-    sync_status: "pending",
-    ...payload
-  };
-
-  if (existingIndex >= 0) localLogs[existingIndex] = record;
-  else localLogs.push(record);
-
-  localStorage.setItem("forge_workout_logs", JSON.stringify(localLogs));
-
-  const p = getProgress();
-  if (!p[workoutDate]) p[workoutDate] = {};
-  p[workoutDate][exerciseId] = true;
-  setProgress(p);
-
-  closeWorkoutLog();
-  renderWorkout();
-  updateHeader();
-  toast("Exercício salvo localmente. Será enviado ao finalizar o treino.");
-}
-
-function buildFinalWorkoutPayload(workoutDate) {
-  const workout = WORKOUTS[currentDay];
-  const localLogs = JSON.parse(localStorage.getItem("forge_workout_logs") || "[]");
-  const records = localLogs.filter(log =>
-    log.workout_date === workoutDate &&
-    log.workout_day === currentDay &&
-    log.sync_status === "pending"
-  );
-
-  if (!records.length) return null;
-
-  return {
-    workout_date: workoutDate,
-    workout_day: currentDay,
-    workout_title: workout.title,
-    workout_badge: workout.badge,
-    completed_at: new Date().toISOString(),
-    exercises: records.flatMap(log => log.exercises || [])
-  };
-}
-
-async function finalizeWorkout() {
-  const workoutDate = getLocalDateString();
-  const payload = buildFinalWorkoutPayload(workoutDate);
-
-  if (!payload) {
-    toast("Nenhum exercício registrado para enviar.");
-    return;
-  }
-
-  const button = document.querySelector('button[onclick="finalizeWorkout()"]');
-  if (button) {
-    button.disabled = true;
-    button.textContent = "ENVIANDO...";
-  }
-
-  try {
-    const response = await fetch("https://script.google.com/macros/s/AKfycbyuwt9y-6UOCgvRJ_Um2BgMfzqeM9yyqntqSllIDlDXRN_HIvVywHcMgQOVV2fJGzBmXw/exec", {
-      method: "POST",
-  headers: {
-    "Content-Type": "text/plain;charset=utf-8"
-  },
-  body: JSON.stringify(payload)
-});
-
-    if (!response.ok) throw new Error(`Backend respondeu ${response.status}`);
-
-    const localLogs = JSON.parse(localStorage.getItem("forge_workout_logs") || "[]");
-    localLogs.forEach(log => {
-      if (
-        log.workout_date === workoutDate &&
-        log.workout_day === currentDay &&
-        log.sync_status === "pending"
-      ) {
-        log.sync_status = "synced";
-        log.synced_at = new Date().toISOString();
-      }
-    });
-    localStorage.setItem("forge_workout_logs", JSON.stringify(localLogs));
-    toast("Treino enviado ao backend com sucesso.");
-  } catch (error) {
-    console.warn("Backend indisponível. Registros continuam salvos localmente.", error);
-    toast("Não foi possível enviar. Os registros continuam salvos localmente.");
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = "FINALIZAR TREINO";
-    }
-  }
-}
-
-function resetDay() {
-  const p = getProgress();
-  if (!p[todayKey]) p[todayKey] = {};
-  WORKOUTS[currentDay].exercises.forEach(x => delete p[todayKey][x[0]]);
-  setProgress(p);
-
-  const logs = getWorkoutLogs().filter(log => !(
-    log.workout_date === todayKey &&
-    log.workout_day === currentDay
-  ));
-  localStorage.setItem("forge_workout_logs", JSON.stringify(logs));
-
-  renderWorkout();
-  toast("Progresso do dia resetado.");
-}
-function openExercise(x) {
-  const [id,name,series,rest,rir,media,muscles,cadence,tip,rules] = x;
-  document.getElementById("modalTitle").textContent = name;
-  document.getElementById("modalMuscles").textContent = muscles;
-  document.getElementById("modalSeries").textContent = series;
-  document.getElementById("modalRest").textContent = "DESCANSO " + rest;
-  document.getElementById("modalRir").textContent = rir;
-  document.getElementById("modalCadence").textContent = cadence;
-  document.getElementById("modalTip").textContent = tip;
-  document.getElementById("modalRules").innerHTML = rules.map(r => `<li>• ${r}</li>`).join("");
-
-  const video = document.getElementById("modalVideo");
-  const img = document.getElementById("modalImage");
-  const fallback = document.getElementById("mediaFallback");
-  video.classList.remove("hidden");
-  img.classList.add("hidden");
-  fallback.classList.add("hidden");
-  video.src = MEDIA[media] || MEDIA.squat;
-  video.onerror = () => {
-    video.classList.add("hidden");
-    fallback.classList.remove("hidden");
-  };
-  video.load();
-  document.getElementById("exerciseModal").classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-}
-function closeModal() {
-  const video = document.getElementById("modalVideo");
-  video.pause();
-  video.removeAttribute("src");
-  video.load();
-  document.getElementById("exerciseModal").classList.add("hidden");
-  document.body.style.overflow = "";
-}
-function renderMobility() {
-  document.getElementById("mobilityGrid").innerHTML = MOBILITY.map(([region,items]) => `
-    <div class="card p-4">
-      <div class="section-label text-lime mb-3">${region}</div>
-      <div class="space-y-2">${items.map(i => `<div class="flex justify-between gap-3 text-xs"><span class="text-gray-400">${i.split(" — ")[0]}</span><strong class="text-gray-600 whitespace-nowrap">${i.split(" — ")[1]}</strong></div>`).join("")}</div>
-    </div>`).join("");
-}
-function renderGrip() {
-  const build = arr => arr.map((x,i) => `
-    <button onclick="openGrip('${x[0]}','${x[1]}','${x[2]}')" class="w-full text-left card p-3 flex items-center justify-between">
-      <span class="text-xs font-semibold">${i+1}. ${x[0]}</span>
-      <span class="text-[10px] text-gray-600">${x[1]} · DEMO</span>
-    </button>`).join("");
-  document.getElementById("gripTue").innerHTML = build(GRIP.tue);
-  document.getElementById("gripFri").innerHTML = build(GRIP.fri);
-}
-function openGrip(name,series,media) {
-  openExercise(["grip-"+name,name,series,"60–120s","Controle",media,"ANTEBRAÇO / PEGADA","Isométrico ou controlado","Qualidade da execução antes de aumentar carga.",["Mantenha o punho alinhado.","Evite compensações.","Pare se houver dor aguda."]]);
-}
-function switchTab(tab) {
-  ["workout","mobility","grip","rules"].forEach(t => {
-    document.getElementById("tab-"+t).classList.toggle("hidden", t !== tab);
-    document.querySelector(`.tab[data-tab="${t}"]`).classList.toggle("active", t === tab);
-  });
-}
-function updateTimer() {
-  const m = Math.floor(timerSeconds/60);
-  const s = timerSeconds%60;
-  document.getElementById("timerDisplay").textContent = `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-}
-function startTimer(sec) {
-  timerSeconds = sec;
-  clearInterval(timerInterval);
-  timerRunning = true;
-  document.getElementById("timerToggle").textContent = "Ⅱ";
-  updateTimer();
-  timerInterval = setInterval(() => {
-    timerSeconds--;
-    updateTimer();
-    if (timerSeconds <= 0) {
-      clearInterval(timerInterval);
-      timerRunning = false;
-      document.getElementById("timerToggle").textContent = "▶";
-      toast("Descanso concluído.");
-      if (navigator.vibrate) navigator.vibrate([150,80,150]);
-    }
-  },1000);
-}
-function toggleTimer() {
-  if (timerRunning) {
-    clearInterval(timerInterval);
-    timerRunning = false;
-    document.getElementById("timerToggle").textContent = "▶";
-  } else {
-    if (timerSeconds <= 0) timerSeconds = 180;
-    timerRunning = true;
-    document.getElementById("timerToggle").textContent = "Ⅱ";
-    timerInterval = setInterval(() => {
-      timerSeconds--;
-      updateTimer();
-      if (timerSeconds <= 0) {
-        clearInterval(timerInterval);
-        timerRunning = false;
-        document.getElementById("timerToggle").textContent = "▶";
-        toast("Descanso concluído.");
-      }
-    },1000);
-  }
-}
-function openSettings() {
-  const s = JSON.parse(localStorage.getItem("forge_settings") || "{}");
-  document.getElementById("userName").value = s.name || "";
-  document.getElementById("userWeight").value = s.weight || "";
-  document.getElementById("settingsModal").classList.remove("hidden");
-  document.body.style.overflow="hidden";
-}
-function closeSettings() {
-  document.getElementById("settingsModal").classList.add("hidden");
-  document.body.style.overflow="";
-}
-function saveSettings() {
-  localStorage.setItem("forge_settings", JSON.stringify({
-    name:document.getElementById("userName").value.trim(),
-    weight:document.getElementById("userWeight").value
-  }));
-  closeSettings();
-  toast("Perfil salvo.");
-}
-function clearAllProgress() {
-  if (!confirm("Apagar todo o progresso salvo neste navegador?")) return;
-  localStorage.removeItem("forge_progress_v2");
-  renderWorkout();
-  closeSettings();
-  toast("Progresso apagado.");
-}
-function toast(msg) {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 1800);
-}
-function goTop() { window.scrollTo({top:0,behavior:"smooth"}); }
-function updateHeader() {
-  const now = new Date();
-  document.getElementById("headerDate").textContent = now.toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}).toUpperCase();
-  const p = getProgress();
-  const days = Object.keys(p).filter(k => Object.keys(p[k]||{}).length);
-  document.getElementById("streakText").textContent = `${days.length} dias registrados`;
-}
-document.getElementById("exerciseModal").addEventListener("click", e => { if(e.target.id==="exerciseModal") closeModal(); });
-document.getElementById("settingsModal").addEventListener("click", e => { if(e.target.id==="settingsModal") closeSettings(); });
-document.getElementById("workoutLogModal").addEventListener("click", e => { if(e.target.id==="workoutLogModal") closeWorkoutLog(); });
-document.addEventListener("keydown", e => { if(e.key==="Escape"){closeModal();closeSettings();closeWorkoutLog();} });
-
-(function init(){
-  renderWorkout();
-  renderMobility();
-  renderGrip();
-  updateTimer();
-  updateHeader();
-  // Se abrir a página no sábado/domingo, posiciona automaticamente no dia atual.
-  const map = ["DOM","SEG","TER","QUA","QUI","SEX","SAB"];
-  const today = map[new Date().getDay()];
-  currentDay = today;
-  renderWorkout();
-})();
-</script>
-</body>
-</html>
